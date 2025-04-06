@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Работай</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background-color: #121212;
+        color: #ffffff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        height: 100vh;
+        overflow: hidden;
+      }
+      #transcription {
+        width: 100%;
+        flex: 1;
+        padding: 10px;
+        border: 2px solid #00e676;
+        background-color: #1e1e1e;
+        color: #ffffff;
+        font-size: 16px;
+        overflow-y: auto;
+        scrollbar-width: none;
+        box-sizing: border-box;
+      }
+      #inputField {
+        flex: 0 0 auto;
+        margin: 2px;
+        margin-top: 10px;
+        width: 100%;
+        max-width: 800px;
+        padding: 10px;
+        border: 2px solid #00e676;
+        background-color: #1e1e1e;
+        color: #ffffff;
+        font-size: 16px;
+        scrollbar-width: none;
+        box-sizing: border-box;
+        resize: none;
+        outline: none; /* Prevent border size increase on focus */
+      }
+      @media (min-width: 768px) {
+        body {
+          margin: 0;
+        }
+        #transcription {
+          width: 90%;
+          max-width: 800px;
+          margin-top: 10px;
+          margin-bottom: 10px;
+        }
+        #inputField {
+          width: 90%;
+        }
+      }
+      p {
+        margin-block-start: 0.5em;
+        margin-block-end: 0.5em;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="transcription"></div>
+    <textarea id="inputField" placeholder="GPT GPT GPT" rows="3"></textarea>
+    <script>
+      const transcriptionDiv = document.getElementById("transcription");
+      const inputField = document.getElementById("inputField");
+      const websocket = new WebSocket(`ws://${window.location.hostname}:5000`);
+      var currentMessageElement = null;
+
+      websocket.onopen = () => {
+        console.log("WebSocket connection established.");
+      };
+
+      // Event: Connection closed
+      websocket.onclose = () => {
+        console.log("WebSocket connection closed.");
+      };
+
+      // Event: Error occurred
+      websocket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+
+      websocket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.transcript) {
+            const transcript = data.transcript;
+            const isFinal = data.isFinal;
+            if (isFinal) {
+              const time = new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+              const timeElement = document.createElement("strong");
+              timeElement.textContent = `[${time}] `;
+              currentMessageElement.prepend(timeElement);
+              currentMessageElement = null;
+            } else {
+              if (!currentMessageElement) {
+                currentMessageElement = document.createElement("p");
+                transcriptionDiv.appendChild(currentMessageElement);
+              }
+              const prevSelection = getSelection();
+              var baseOffset = prevSelection.anchorOffset;
+              var focusOffset = prevSelection.focusOffset;
+              currentMessageElement.textContent = transcript;
+              if (getSelection().anchorNode == currentMessageElement) {
+                var sel = window.getSelection();
+                var range = document.createRange();
+                baseOffset = Math.min(
+                  baseOffset,
+                  currentMessageElement.textContent.length
+                );
+                focusOffset = Math.min(
+                  focusOffset,
+                  currentMessageElement.textContent.length
+                );
+                range.setStart(currentMessageElement.firstChild, baseOffset);
+                range.setEnd(currentMessageElement.firstChild, focusOffset);
+                sel.removeAllRanges();
+                sel.addRange(range);
+              }
+            }
+            transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+          }
+          if (data.input !== undefined) {
+            inputField.value = data.input;
+          }
+          if (data.send !== undefined) {
+            inputField.value = "";
+          }
+        } catch (error) {
+          console.error("Error parsing WebSocket message:", error);
+          console.error(error.stack); // Print stack trace of the error
+        }
+      };
+
+      inputField.addEventListener("keypress", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          if (inputField.value.trim() != "") {
+            websocket.send(JSON.stringify({ send: inputField.value }));
+            inputField.value = "";
+          }
+        }
+      });
+      inputField.addEventListener("input", (event) => {
+        websocket.send(JSON.stringify({ input: inputField.value }));
+      });
+      document.addEventListener("mousedown", (event) => {
+        if (event.button === 1) {
+          // Middle mouse button
+          const selectedText = window.getSelection().toString().trim();
+          if (selectedText) {
+            websocket.send(JSON.stringify({ send: selectedText }));
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
