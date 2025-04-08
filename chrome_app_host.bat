@@ -1,0 +1,1 @@
+chrome --app=http://localhost:5000/host --window-size=400,400

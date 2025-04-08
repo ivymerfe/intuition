@@ -32,20 +32,30 @@ wss.on("connection", (ws) => {
 const PORT = 5000;
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
-  console.log(`Host is on http://localhost:${PORT}/host.html`);
-  console.log(`Assistant is on http://localhost:${PORT}/assistant.html`);
+  console.log(`Host is on http://localhost:${PORT}/host`);
+  console.log(`Assistant is on http://localhost:${PORT}/assistant`);
 });
 
 const publicDir = path.join(__dirname, "public");
 server.on("request", (req, res) => {
-  const filePath = path.join(publicDir, req.url);
+  let filePath;
+  if (req.url === "/assistant") {
+    filePath = path.join(publicDir, "assistant.html");
+  } else if (req.url === "/host") {
+    filePath = path.join(publicDir, "host.html");
+  } else {
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("404 Not Found");
+    return;
+  }
+
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("404 Not Found");
-      return;
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("500 Internal Server Error");
+    } else {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end(data);
     }
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(data);
   });
 });
