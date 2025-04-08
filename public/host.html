@@ -113,9 +113,8 @@
       inputField.addEventListener("input", (event) => {
         websocket.send(JSON.stringify({ input: inputField.value }));
       });
-      document.addEventListener("mousedown", (event) => {
-        if (event.button === 1) {
-          // Middle mouse button
+      document.addEventListener("keyup", (e) => {
+        if (e.code = "Backquote") {
           const selectedText = window.getSelection().toString().trim();
           if (selectedText) {
             websocket.send(JSON.stringify({ send: selectedText }));
@@ -140,13 +139,6 @@
 
           const isFinal = event.results[event.results.length - 1].isFinal;
           if (isFinal) {
-            const time = new Date().toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
-            const timeElement = document.createElement("strong");
-            timeElement.textContent = `[${time}] `;
-            currentMessageElement.prepend(timeElement);
             currentMessageElement = null;
           } else {
             if (!currentMessageElement) {
