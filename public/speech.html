@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Speech Recognizer</title>
+  </head>
+  <body>
+    <div id="status"></div>
+    <script>
+      const websocket = new WebSocket("ws://localhost:5000");
+      websocket.onopen = () => {
+        console.log("WebSocket connection established.");
+        document.getElementById("status").innerHTML += "<p>Connected</p>";
+      };
+      // Event: Connection closed
+      websocket.onclose = () => {
+        console.log("WebSocket connection closed.");
+      };
+      // Event: Error occurred
+      websocket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+
+      async function startRecognition() {
+        const recognizer = new (window.SpeechRecognition ||
+          window.webkitSpeechRecognition)();
+        recognizer.continuous = true;
+        recognizer.interimResults = true;
+        recognizer.lang = "ru-RU"; // Set language to Russian
+
+        console.log(recognizer);
+
+        var isEdit = false;
+        recognizer.onresult = (event) => {
+          let transcript = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+          }
+          websocket.send(JSON.stringify({ transcript, isEdit }));
+          const isFinal = event.results[event.results.length - 1].isFinal;
+          isEdit = !isFinal;
+        };
+
+        recognizer.onerror = (event) => {
+          console.error("Speech recognition error:", event.error);
+        };
+
+        recognizer.onend = () => {
+          setTimeout(startRecognition, 500);
+        };
+
+        recognizer.start();
+        document.getElementById("status").innerHTML += "<p>Listening...</p>";
+      }
+
+      // For some reason Web Speech API works bad after some time.
+      setInterval(() => {
+        window.location.reload();
+        // onend will be called
+      }, 60000);
+
+      // Start recognition on page load
+      startRecognition();
+    </script>
+  </body>
+</html>

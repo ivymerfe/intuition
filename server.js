@@ -32,17 +32,49 @@ wss.on("connection", (ws) => {
 const PORT = 5000;
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
-  console.log(`Host is on http://localhost:${PORT}/host`);
+  console.log(`Speech host is on http://localhost:${PORT}/speech`);
   console.log(`Assistant is on http://localhost:${PORT}/assistant`);
 });
 
 const publicDir = path.join(__dirname, "public");
 server.on("request", (req, res) => {
+  if (req.method === "OPTIONS") {
+    res.writeHead(200, {
+      "Access-Control-Allow-Private-Network": "true",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS, POST",
+      "Access-Control-Allow-Headers": "Content-Type",
+    });
+    res.end();
+    return;
+  }
+  if (req.method === "POST" && req.url === "/send") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", () => {
+      try {
+        const data = JSON.parse(body);
+        for (const ws of connectedWebsockets) {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(data));
+          }
+        }
+        res.writeHead(200, {"Content-Type": "text/plain"});
+        res.end("ok");
+      } catch (error) {
+        res.writeHead(400, { "Content-Type": "text/plain" });
+        res.end("Bad request");
+      }
+    });
+    return;
+  }
   let filePath;
   if (req.url === "/assistant") {
     filePath = path.join(publicDir, "assistant.html");
-  } else if (req.url === "/host") {
-    filePath = path.join(publicDir, "host.html");
+  } else if (req.url === "/speech") {
+    filePath = path.join(publicDir, "speech.html");
   } else {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("404 Not Found");

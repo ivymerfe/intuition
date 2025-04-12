@@ -1,1 +1,0 @@
-chrome --app=https://chatgpt.com/ --window-size=400,400

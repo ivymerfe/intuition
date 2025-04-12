@@ -93,49 +93,40 @@
           const data = JSON.parse(event.data);
           if (data.transcript) {
             const transcript = data.transcript;
-            const isFinal = data.isFinal;
-            if (isFinal) {
-              currentMessageElement = null;
-            } else {
-              if (!currentMessageElement) {
-                currentMessageElement = document.createElement("p");
-                transcriptionDiv.appendChild(currentMessageElement);
-              }
-              const prevSelection = getSelection();
-              var baseOffset = prevSelection.anchorOffset;
-              var focusOffset = prevSelection.focusOffset;
-              currentMessageElement.textContent = transcript;
-              if (getSelection().anchorNode == currentMessageElement) {
-                var sel = window.getSelection();
-                var range = document.createRange();
-                baseOffset = Math.min(
-                  baseOffset,
-                  currentMessageElement.textContent.length
-                );
-                focusOffset = Math.min(
-                  focusOffset,
-                  currentMessageElement.textContent.length
-                );
-                range.setStart(currentMessageElement.firstChild, baseOffset);
-                range.setEnd(currentMessageElement.firstChild, focusOffset);
-                sel.removeAllRanges();
-                sel.addRange(range);
-              }
+            if (!data.isEdit || !currentMessageElement) {
+              currentMessageElement = document.createElement("p");
+              transcriptionDiv.appendChild(currentMessageElement);
+            }
+            const prevSelection = getSelection();
+            var baseOffset = prevSelection.anchorOffset;
+            var focusOffset = prevSelection.focusOffset;
+            currentMessageElement.textContent = transcript;
+            if (getSelection().anchorNode == currentMessageElement) {
+              var sel = window.getSelection();
+              var range = document.createRange();
+              baseOffset = Math.min(
+                baseOffset,
+                currentMessageElement.textContent.length
+              );
+              focusOffset = Math.min(
+                focusOffset,
+                currentMessageElement.textContent.length
+              );
+              range.setStart(currentMessageElement.firstChild, baseOffset);
+              range.setEnd(currentMessageElement.firstChild, focusOffset);
+              sel.removeAllRanges();
+              sel.addRange(range);
             }
             transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
           }
           if (data.input !== undefined) {
             inputField.value = data.input;
           }
-          if (data.send !== undefined) {
-            inputField.value = "";
-          }
         } catch (error) {
           console.error("Error parsing WebSocket message:", error);
           console.error(error.stack); // Print stack trace of the error
         }
       };
-
       inputField.addEventListener("keypress", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
@@ -149,10 +140,11 @@
         websocket.send(JSON.stringify({ input: inputField.value }));
       });
       document.addEventListener("keyup", (e) => {
-        if (e.code = "Backquote") {
+        if (e.code === "Backquote") {
           const selectedText = window.getSelection().toString().trim();
           if (selectedText) {
-            websocket.send(JSON.stringify({ send: selectedText }));
+            inputField.value += selectedText;
+            websocket.send(JSON.stringify({ input: inputField.value }));
           }
         }
       });
