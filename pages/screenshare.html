@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Streamer</title>
+    <style>
+      body {
+        margin: 0;
+        background-color: rgb(30, 30, 30);
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      video {
+        height: 70vh;
+        width: 100vw;
+        display: block;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="localVideo" autoplay muted></video>
+    <script>
+      const websocket = new WebSocket(`ws://${window.location.hostname}:5000`);
+      let peer_connection;
+      let stream;
+      websocket.onopen = () => {
+        websocket.send(JSON.stringify({ type: "screenshare" }));
+        console.log("WebSocket connection established.");
+      };
+      websocket.onmessage = async (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "screenshare") {
+          if (msg.sdp && msg.sdp.type === "answer") {
+            await peer_connection.setRemoteDescription(
+              new RTCSessionDescription(msg.sdp)
+            );
+          }
+          if (msg.command === "need-offer") {
+            createAndSendOffer();
+          }
+        }
+      };
+      async function share() {
+        stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false,
+        });
+        document.getElementById("localVideo").srcObject = stream;
+        await createAndSendOffer();
+      }
+      async function createAndSendOffer() {
+        if (peer_connection) peer_connection.close();
+        peer_connection = new RTCPeerConnection({ iceServers: [] });
+        stream
+          .getTracks()
+          .forEach((track) => peer_connection.addTrack(track, stream));
+        peer_connection.onicecandidate = (e) => {
+          if (e.candidate) return;
+          websocket.send(
+            JSON.stringify({
+              type: "screenshare",
+              sdp: peer_connection.localDescription,
+            })
+          );
+        };
+        const offer = await peer_connection.createOffer();
+        await peer_connection.setLocalDescription(offer);
+      }
+      share();
+    </script>
+  </body>
+</html>

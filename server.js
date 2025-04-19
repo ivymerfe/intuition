@@ -7,16 +7,26 @@ const server = http.createServer();
 const wss = new WebSocket.Server({ server });
 
 const connectedWebsockets = new Set();
+const screenshareClients = new Set();
 
 wss.on("connection", (ws) => {
   connectedWebsockets.add(ws);
 
   ws.on("message", (message) => {
     try {
-      const data = JSON.parse(message);
+      const msg = JSON.parse(message);
+      if (msg.type === "screenshare") {
+        screenshareClients.add(ws);
+        for (const client of screenshareClients) {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(msg));
+          }
+        }
+        return;
+      }
       for (const ws2 of connectedWebsockets) {
         if (ws2 !== ws && ws2.readyState === WebSocket.OPEN) {
-          ws2.send(JSON.stringify(data));
+          ws2.send(JSON.stringify(msg));
         }
       }
     } catch (error) {
@@ -26,17 +36,27 @@ wss.on("connection", (ws) => {
 
   ws.on("close", () => {
     connectedWebsockets.delete(ws);
+    screenshareClients.delete(ws);
   });
 });
+
+const publicDir = path.join(__dirname, "pages");
+const publicFileRoutes = {
+  "/assistant": path.join(publicDir, "assistant.html"),
+  "/speech": path.join(publicDir, "speech.html"),
+  "/screenshare": path.join(publicDir, "screenshare.html"),
+  "/screenshare_assistant": path.join(publicDir, "screenshare_assistant.html"),
+};
 
 const PORT = 5000;
 server.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
-  console.log(`Speech host is on http://localhost:${PORT}/speech`);
-  console.log(`Assistant is on http://localhost:${PORT}/assistant`);
+  console.log("Pages:");
+  for (const route in publicFileRoutes) {
+    console.log(`- http://localhost:${PORT}${route}`);
+  }
 });
 
-const publicDir = path.join(__dirname, "public");
 server.on("request", (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(200, {
@@ -70,12 +90,8 @@ server.on("request", (req, res) => {
     });
     return;
   }
-  let filePath;
-  if (req.url === "/assistant") {
-    filePath = path.join(publicDir, "assistant.html");
-  } else if (req.url === "/speech") {
-    filePath = path.join(publicDir, "speech.html");
-  } else {
+  const filePath = publicFileRoutes[req.url];
+  if (!filePath) {
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("404 Not Found");
     return;

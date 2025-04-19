@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Работай</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background-color: #1a1a1a;
+        color: #ffffff;
+        height: 100vh;
+      }
+      #transcription {
+        width: 100%;
+        height: 84%;
+        padding: 10px;
+        border: 2px solid #00e676;
+        border-bottom: 0;
+        background-color: #1e1e1e;
+        color: #ffffff;
+        font-size: 16px;
+        overflow-y: auto;
+        scrollbar-width: none;
+        box-sizing: border-box;
+      }
+      #inputField {
+        width: 100%;
+        height: 15%;
+        padding: 10px;
+        border: 2px solid #00e676;
+        background-color: #1e1e1e;
+        color: #ffffff;
+        font-size: 16px;
+        scrollbar-width: none;
+        box-sizing: border-box;
+        resize: none;
+        outline: none; /* Prevent border size increase on focus */
+      }
+      #container {
+        position: absolute;
+        right: 0;
+        width: 30%;
+        max-width: 600px;
+        height: 100%;
+      }
+      video {
+        position: absolute;
+        height: 100vh;
+        max-width: 100vw;
+        display: block;
+        pointer-events: none;
+      }
+      p {
+        margin-block-start: 0.5em;
+        margin-block-end: 0.5em;
+      }
+    </style>
+  </head>
+  <body>
+    <video id="remoteVideo" autoplay muted></video>
+    <div id="container">
+      <div id="transcription"></div>
+      <textarea id="inputField" placeholder="GPT GPT GPT" rows="3"></textarea>
+    </div>
+    <script>
+      const websocket = new WebSocket(`ws://${window.location.hostname}:5000`);
+      const transcriptionDiv = document.getElementById("transcription");
+      const inputField = document.getElementById("inputField");
+      var currentMessageElement = null;
+
+      websocket.onopen = () => {
+        websocket.send(
+          JSON.stringify({ type: "screenshare", command: "need-offer" })
+        );
+        console.log("WebSocket connection established.");
+      };
+
+      // Event: Connection closed
+      websocket.onclose = () => {
+        console.log("WebSocket connection closed.");
+      };
+
+      // Event: Error occurred
+      websocket.onerror = (error) => {
+        console.error("WebSocket error:", error);
+      };
+
+      var peer_connection = null;
+      websocket.onmessage = async (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "screenshare") {
+            if (msg.sdp && msg.sdp.type === "offer") {
+              peer_connection = new RTCPeerConnection({ iceServers: [] });
+              peer_connection.ontrack = (e) => {
+                document.getElementById("remoteVideo").srcObject = e.streams[0];
+              };
+              peer_connection.onicecandidate = (e) => {
+                if (e.candidate) return;
+                websocket.send(
+                  JSON.stringify({
+                    type: "screenshare",
+                    sdp: peer_connection.localDescription,
+                  })
+                );
+              };
+              await peer_connection.setRemoteDescription(
+                new RTCSessionDescription(msg.sdp)
+              );
+              const answer = await peer_connection.createAnswer();
+              await peer_connection.setLocalDescription(answer);
+            }
+          }
+          if (msg.transcript) {
+            addTranscript(msg.transcript, msg.isEdit);
+          }
+          if (msg.input !== undefined) {
+            inputField.value = msg.input;
+          }
+        } catch (error) {
+          console.error("Error parsing WebSocket message:", error);
+          console.error(error.stack); // Print stack trace of the error
+        }
+      };
+      function addTranscript(transcript, isEdit) {
+        if (!isEdit || !currentMessageElement) {
+          currentMessageElement = document.createElement("p");
+          transcriptionDiv.appendChild(currentMessageElement);
+        }
+        const prevSelection = getSelection();
+        var baseOffset = prevSelection.anchorOffset;
+        var focusOffset = prevSelection.focusOffset;
+        currentMessageElement.textContent = transcript;
+        if (getSelection().anchorNode == currentMessageElement) {
+          var sel = window.getSelection();
+          var range = document.createRange();
+          baseOffset = Math.min(
+            baseOffset,
+            currentMessageElement.textContent.length
+          );
+          focusOffset = Math.min(
+            focusOffset,
+            currentMessageElement.textContent.length
+          );
+          range.setStart(currentMessageElement.firstChild, baseOffset);
+          range.setEnd(currentMessageElement.firstChild, focusOffset);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+      }
+      inputField.addEventListener("keypress", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          if (inputField.value.trim() != "") {
+            websocket.send(JSON.stringify({ send: inputField.value }));
+            inputField.value = "";
+          }
+        }
+      });
+      inputField.addEventListener("input", (event) => {
+        websocket.send(JSON.stringify({ input: inputField.value }));
+      });
+      var showPanel = true;
+      document.addEventListener("keyup", (e) => {
+        if (e.code === "Backquote") {
+          const selectedText = window.getSelection().toString().trim();
+          if (selectedText) {
+            inputField.value += selectedText;
+            websocket.send(JSON.stringify({ input: inputField.value }));
+          }
+        }
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.code === "Tab") {
+          e.preventDefault();
+          if (showPanel) {
+            document.getElementById("container").style.opacity = "0.2";
+            showPanel = false;
+          } else {
+            document.getElementById("container").style.opacity = "1";
+            showPanel = true;
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

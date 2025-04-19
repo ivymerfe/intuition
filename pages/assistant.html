@@ -8,20 +8,16 @@
       body {
         margin: 0;
         font-family: Arial, sans-serif;
-        background-color: #121212;
+        background-color: #1a1a1a;
         color: #ffffff;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: flex-start;
         height: 100vh;
-        overflow: hidden;
       }
       #transcription {
         width: 100%;
-        flex: 1;
+        height: 84%;
         padding: 10px;
         border: 2px solid #00e676;
+        border-bottom: 0;
         background-color: #1e1e1e;
         color: #ffffff;
         font-size: 16px;
@@ -30,11 +26,8 @@
         box-sizing: border-box;
       }
       #inputField {
-        flex: 0 0 auto;
-        margin: 2px;
-        margin-top: 10px;
         width: 100%;
-        max-width: 800px;
+        height: 15%;
         padding: 10px;
         border: 2px solid #00e676;
         background-color: #1e1e1e;
@@ -45,19 +38,11 @@
         resize: none;
         outline: none; /* Prevent border size increase on focus */
       }
-      @media (min-width: 768px) {
-        body {
-          margin: 0;
-        }
-        #transcription {
-          width: 90%;
-          max-width: 800px;
-          margin-top: 10px;
-          margin-bottom: 10px;
-        }
-        #inputField {
-          width: 90%;
-        }
+      #container {
+        margin: 0 auto;
+        width: 100%;
+        max-width: 800px;
+        height: 100%;
       }
       p {
         margin-block-start: 0.5em;
@@ -66,12 +51,14 @@
     </style>
   </head>
   <body>
-    <div id="transcription"></div>
-    <textarea id="inputField" placeholder="GPT GPT GPT" rows="3"></textarea>
+    <div id="container">
+      <div id="transcription"></div>
+      <textarea id="inputField" placeholder="GPT GPT GPT" rows="3"></textarea>
+    </div>
     <script>
+      const websocket = new WebSocket(`ws://${window.location.hostname}:5000`);
       const transcriptionDiv = document.getElementById("transcription");
       const inputField = document.getElementById("inputField");
-      const websocket = new WebSocket(`ws://${window.location.hostname}:5000`);
       var currentMessageElement = null;
 
       websocket.onopen = () => {
